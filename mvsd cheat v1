@@ -1779,7 +1779,7 @@ local function createFovCircle()
 end
 createFovCircle()
 local function update_fov_circle()
-    if fov_circle and (fov_circle_enabled or fov_autoshoot_enabled or fov_manualShoot_enabled) then
+    if fov_circle and fov_circle_enabled then
         local mouse_pos = UserInputService:GetMouseLocation()
         fov_circle.Position = Vector2.new(mouse_pos.X, mouse_pos.Y)
         fov_circle.Radius = fov_radius
@@ -1923,15 +1923,43 @@ local function stop_gun_controller_loop()
         fov_gunController = nil
     end
 end
-fov:Toggle({ -- enable fov circle
-    Title = "Enable FOV Circle",
-    Desc = "Show FOV circle around your mouse",
+local fov_circle_toggle = nil
+fov_circle_toggle = fov:Toggle({ -- enable fov circle
+    Title = "Draw FOV Circle",
+    Desc = "Show the FOV circle around your mouse (aimbot still works while hidden)",
     Default = false,
     Flag = "EnableFovCircle",
     Callback = function(value)
         fov_circle_enabled = value
+        if fov_circle then
+            fov_circle.Visible = value
+        end
     end
 })
+local fov_toggle_key = Enum.KeyCode.RightControl
+fov:Keybind({ -- draw/undraw keybind
+    Title = "Draw/Undraw Keybind",
+    Desc = "Instantly hides or shows the FOV circle",
+    Value = "RightControl",
+    Flag = "FovCircleKeybind",
+    Callback = function(key)
+        fov_toggle_key = Enum.KeyCode[key]
+    end
+})
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == fov_toggle_key then
+        fov_circle_enabled = not fov_circle_enabled
+        if fov_circle_toggle then
+            pcall(function()
+                fov_circle_toggle:Set(fov_circle_enabled)
+            end)
+        end
+        if fov_circle then
+            fov_circle.Visible = fov_circle_enabled
+        end
+    end
+end)
 fov_autoshoot_toggle = fov:Toggle({ -- autoshoot fov
     Title = "Autoshoot FOV",
     Desc = "Automatically shoots enemies in your FOV circle",
