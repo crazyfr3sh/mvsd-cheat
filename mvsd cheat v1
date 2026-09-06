@@ -1,4 +1,4 @@
---[[
+    --[[
 	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
 ]]
 if getgenv().TFjhJhggCUo then
@@ -2026,6 +2026,405 @@ fov:Slider({ -- fov shoot cooldown
     end
 })
 
+local Visuals = window:Tab({
+    Title = "Visuals",
+    Icon = "palette",
+    Locked = false,
+})
+local LightingService = game:GetService("Lighting")
+getgenv().custom_sky = false
+getgenv().sky_color = Color3.fromRGB(150, 0, 255)
+getgenv().sky_density = 0.35
+getgenv().sky_brightness = 1
+local skyOriginals = nil
+local skyAtmosphere = nil
+local skyColorCorrection = nil
+local removedSkies = {}
+local function applySkyVisuals()
+    if not getgenv().custom_sky then return end
+    local color = getgenv().sky_color
+    if skyAtmosphere then
+        skyAtmosphere.Color = color
+        skyAtmosphere.Decay = color
+        skyAtmosphere.Density = getgenv().sky_density
+        skyAtmosphere.Haze = 3
+        skyAtmosphere.Glare = 0.4
+    end
+    if skyColorCorrection then
+        skyColorCorrection.TintColor = color
+        skyColorCorrection.Brightness = (getgenv().sky_brightness - 1) * 0.1
+        skyColorCorrection.Saturation = 0.2
+    end
+    LightingService.FogColor = color
+    LightingService.OutdoorAmbient = color
+    LightingService.Ambient = Color3.new(color.R * 0.4, color.G * 0.4, color.B * 0.4)
+end
+local function enableSky()
+    if not skyOriginals then
+        skyOriginals = {
+            FogColor = LightingService.FogColor,
+            OutdoorAmbient = LightingService.OutdoorAmbient,
+            Ambient = LightingService.Ambient,
+            ClockTime = LightingService.ClockTime,
+            Brightness = LightingService.Brightness,
+        }
+    end
+    removedSkies = {}
+    for _, child in ipairs(LightingService:GetChildren()) do
+        if child:IsA("Sky") then
+            child.Parent = nil
+            table.insert(removedSkies, child)
+        end
+    end
+    if not skyAtmosphere then
+        skyAtmosphere = LightingService:FindFirstChildOfClass("Atmosphere") or Instance.new("Atmosphere")
+        skyAtmosphere.Parent = LightingService
+    end
+    if not skyColorCorrection then
+        skyColorCorrection = Instance.new("ColorCorrectionEffect")
+        skyColorCorrection.Name = "SelikHubSkyTint"
+        skyColorCorrection.Parent = LightingService
+    end
+    LightingService.ClockTime = 0
+    LightingService.Brightness = 2
+    applySkyVisuals()
+end
+local function disableSky()
+    if skyColorCorrection then
+        skyColorCorrection:Destroy()
+        skyColorCorrection = nil
+    end
+    if skyAtmosphere then
+        skyAtmosphere:Destroy()
+        skyAtmosphere = nil
+    end
+    for _, sky in ipairs(removedSkies) do
+        sky.Parent = LightingService
+    end
+    removedSkies = {}
+    if skyOriginals then
+        LightingService.FogColor = skyOriginals.FogColor
+        LightingService.OutdoorAmbient = skyOriginals.OutdoorAmbient
+        LightingService.Ambient = skyOriginals.Ambient
+        LightingService.ClockTime = skyOriginals.ClockTime
+        LightingService.Brightness = skyOriginals.Brightness
+    end
+end
+Visuals:Toggle({ -- custom sky
+    Title = "Custom Sky",
+    Desc = "Recolors the sky, fog and lighting, purple by default",
+    Default = false,
+    Flag = "CustomSkyToggle",
+    Callback = function(state)
+        getgenv().custom_sky = state
+        if state then
+            FeatureActivated(true)
+            pcall(enableSky)
+        else
+            FeatureActivated(false)
+            pcall(disableSky)
+        end
+    end
+})
+Visuals:Colorpicker({ -- sky color
+    Title = "Sky Color",
+    Desc = "Color of the sky, fog and ambient light",
+    Default = Color3.fromRGB(150, 0, 255),
+    Transparency = 0,
+    Locked = false,
+    Flag = "SkyColorPicker",
+    Callback = function(color)
+        getgenv().sky_color = color
+        pcall(applySkyVisuals)
+    end
+})
+Visuals:Dropdown({ -- sky presets
+    Title = "Sky Preset",
+    Desc = "Quick color presets",
+    Flag = "SkyPresetDropdown",
+    Values = { "Purple", "Pink", "Red", "Blue", "Green", "Orange", "Black" },
+    Value = "Purple",
+    Callback = function(option)
+        local presets = {
+            Purple = Color3.fromRGB(150, 0, 255),
+            Pink = Color3.fromRGB(255, 80, 200),
+            Red = Color3.fromRGB(255, 40, 40),
+            Blue = Color3.fromRGB(40, 120, 255),
+            Green = Color3.fromRGB(40, 255, 120),
+            Orange = Color3.fromRGB(255, 140, 30),
+            Black = Color3.fromRGB(20, 20, 20),
+        }
+        getgenv().sky_color = presets[option] or getgenv().sky_color
+        pcall(applySkyVisuals)
+    end
+})
+Visuals:Slider({ -- sky density
+    Title = "Sky Density",
+    Desc = "How thick the colored atmosphere looks",
+    Step = 0.05,
+    Flag = "SkyDensitySlider",
+    Value = {
+        Min = 0,
+        Max = 1,
+        Default = 0.35,
+    },
+    Callback = function(value)
+        getgenv().sky_density = value
+        pcall(applySkyVisuals)
+    end
+})
+Visuals:Slider({ -- sky brightness
+    Title = "Sky Brightness",
+    Step = 0.1,
+    Flag = "SkyBrightnessSlider",
+    Value = {
+        Min = 0,
+        Max = 5,
+        Default = 1,
+    },
+    Callback = function(value)
+        getgenv().sky_brightness = value
+        pcall(applySkyVisuals)
+    end
+})
+
+local HvH = window:Tab({
+    Title = "HvH",
+    Icon = "swords",
+    Locked = false,
+})
+getgenv().anti_ragebot = false
+getgenv().anti_ragebot_mode = "Jitter"
+getgenv().anti_ragebot_range = 5
+getgenv().anti_ragebot_pulse = 0.12
+getgenv().hitbox_shrink = false
+getgenv().anti_prediction = false
+getgenv().anti_prediction_power = 12
+getgenv().hvh_fakeduck = false
+local hvhOriginalHitbox = nil
+local function hvhRoot()
+    local character = Player.Character
+    return character and character:FindFirstChild("HumanoidRootPart")
+end
+local function hvhHumanoid()
+    local character = Player.Character
+    return character and character:FindFirstChild("Humanoid")
+end
+HvH:Toggle({ -- anti ragebot
+    Title = "Anti Ragebot",
+    Desc = "Desyncs where you really are so enemy ragebots and silent aim miss",
+    Default = false,
+    Flag = "AntiRagebotToggle",
+    Callback = function(state)
+        getgenv().anti_ragebot = state
+        if state then
+            FeatureActivated(true)
+            task.spawn(function()
+                while getgenv().anti_ragebot do
+                    local mode = getgenv().anti_ragebot_mode
+                    local pulse = getgenv().anti_ragebot_pulse
+                    pcall(function()
+                        if mode == "Jitter" or mode == "Both" then
+                            local range = getgenv().anti_ragebot_range
+                            local offset = Vector3.new(
+                                math.random(-range, range),
+                                0,
+                                math.random(-range, range)
+                            )
+                            local root = hvhRoot()
+                            if root then
+                                root.CFrame = root.CFrame + offset
+                                task.wait(pulse * 0.5)
+                                local back = hvhRoot()
+                                if back then
+                                    back.CFrame = back.CFrame - offset
+                                end
+                            end
+                        end
+                    end)
+                    pcall(function()
+                        if mode == "Fake Lag" or mode == "Both" then
+                            local root = hvhRoot()
+                            if root then
+                                local velocity = root.AssemblyLinearVelocity
+                                root.AssemblyLinearVelocity = Vector3.new(0, velocity.Y, 0)
+                                task.wait(pulse * 0.5)
+                                local resume = hvhRoot()
+                                if resume then
+                                    resume.AssemblyLinearVelocity = velocity
+                                end
+                            end
+                        end
+                    end)
+                    task.wait(pulse)
+                end
+            end)
+        else
+            FeatureActivated(false)
+        end
+    end
+})
+HvH:Dropdown({ -- anti ragebot mode
+    Title = "Anti Ragebot Mode",
+    Desc = "Jitter throws your hitbox around, Fake Lag pulses your movement",
+    Flag = "AntiRagebotModeDropdown",
+    Values = { "Jitter", "Fake Lag", "Both" },
+    Value = "Jitter",
+    Callback = function(option)
+        getgenv().anti_ragebot_mode = option
+    end
+})
+HvH:Slider({ -- anti ragebot range
+    Title = "Jitter Range",
+    Desc = "How far your hitbox is thrown off, higher is more obvious",
+    Step = 1,
+    Flag = "AntiRagebotRangeSlider",
+    Value = {
+        Min = 1,
+        Max = 20,
+        Default = 5,
+    },
+    Callback = function(value)
+        getgenv().anti_ragebot_range = value
+    end
+})
+HvH:Slider({ -- anti ragebot pulse
+    Title = "Pulse Speed",
+    Desc = "Seconds between desync pulses, lower is more aggressive",
+    Step = 0.02,
+    Flag = "AntiRagebotPulseSlider",
+    Value = {
+        Min = 0.04,
+        Max = 0.5,
+        Default = 0.12,
+    },
+    Callback = function(value)
+        getgenv().anti_ragebot_pulse = value
+    end
+})
+
+HvH:Space()
+HvH:Toggle({ -- hitbox shrink
+    Title = "Hitbox Shrink",
+    Desc = "Shrinks your root hitbox so enemy hitbox expanders have less to hit",
+    Default = false,
+    Flag = "HitboxShrinkToggle",
+    Callback = function(state)
+        getgenv().hitbox_shrink = state
+        if state then
+            FeatureActivated(true)
+            task.spawn(function()
+                while getgenv().hitbox_shrink do
+                    pcall(function()
+                        local root = hvhRoot()
+                        if root then
+                            if not hvhOriginalHitbox then
+                                hvhOriginalHitbox = root.Size
+                            end
+                            local small = Vector3.new(0.5, 0.5, 0.5)
+                            if root.Size ~= small then
+                                root.Size = small
+                            end
+                        end
+                    end)
+                    task.wait(0.3)
+                end
+            end)
+        else
+            FeatureActivated(false)
+            pcall(function()
+                local root = hvhRoot()
+                if root and hvhOriginalHitbox then
+                    root.Size = hvhOriginalHitbox
+                end
+            end)
+        end
+    end
+})
+
+HvH:Space()
+HvH:Toggle({ -- anti prediction
+    Title = "Anti Prediction",
+    Desc = "Randomizes your velocity so prediction based aimbots shoot behind you",
+    Default = false,
+    Flag = "AntiPredictionToggle",
+    Callback = function(state)
+        getgenv().anti_prediction = state
+        if state then
+            FeatureActivated(true)
+            task.spawn(function()
+                while getgenv().anti_prediction do
+                    pcall(function()
+                        local root = hvhRoot()
+                        local humanoid = hvhHumanoid()
+                        if root and humanoid and humanoid.MoveDirection.Magnitude > 0 then
+                            local power = getgenv().anti_prediction_power
+                            local velocity = root.AssemblyLinearVelocity
+                            root.AssemblyLinearVelocity = Vector3.new(
+                                velocity.X + math.random(-power, power),
+                                velocity.Y,
+                                velocity.Z + math.random(-power, power)
+                            )
+                        end
+                    end)
+                    task.wait(0.1)
+                end
+            end)
+        else
+            FeatureActivated(false)
+        end
+    end
+})
+HvH:Slider({ -- anti prediction power
+    Title = "Anti Prediction Power",
+    Desc = "How hard your velocity is randomized",
+    Step = 1,
+    Flag = "AntiPredictionPowerSlider",
+    Value = {
+        Min = 1,
+        Max = 40,
+        Default = 12,
+    },
+    Callback = function(value)
+        getgenv().anti_prediction_power = value
+    end
+})
+
+HvH:Space()
+HvH:Toggle({ -- fake duck
+    Title = "Fake Duck",
+    Desc = "Keeps your character low and twitching so enemy aim lands above you",
+    Default = false,
+    Flag = "FakeDuckToggle",
+    Callback = function(state)
+        getgenv().hvh_fakeduck = state
+        if state then
+            FeatureActivated(true)
+            task.spawn(function()
+                while getgenv().hvh_fakeduck do
+                    pcall(function()
+                        local humanoid = hvhHumanoid()
+                        local root = hvhRoot()
+                        if humanoid and root then
+                            humanoid.HipHeight = -0.6
+                            root.CFrame = root.CFrame * CFrame.new(0, math.random(-1, 1) * 0.35, 0)
+                        end
+                    end)
+                    task.wait(0.08)
+                end
+                pcall(function()
+                    local humanoid = hvhHumanoid()
+                    if humanoid then
+                        humanoid.HipHeight = 0
+                    end
+                end)
+            end)
+        else
+            FeatureActivated(false)
+        end
+    end
+})
+
 local Misc = window:Tab({
     Title = "Misc",
     Icon = "folder",
@@ -2051,6 +2450,198 @@ Misc:Toggle({ -- auto spin
             end
         end)
     end,
+})
+getgenv().spinbot = false
+getgenv().spinbot_speed = 20
+local spinbotLoop = nil
+Misc:Toggle({ -- spinbot
+    Title = "Spinbot",
+    Desc = "Constantly spins your character to throw off enemy aim",
+    Default = false,
+    Flag = "SpinbotToggle",
+    Callback = function(state)
+        getgenv().spinbot = state
+        if state then
+            FeatureActivated(true)
+            if spinbotLoop then spinbotLoop:Disconnect() end
+            spinbotLoop = RunService.Heartbeat:Connect(function(delta)
+                if not getgenv().spinbot then
+                    spinbotLoop:Disconnect()
+                    spinbotLoop = nil
+                    return
+                end
+                local character = Player.Character
+                local root = character and character:FindFirstChild("HumanoidRootPart")
+                if root then
+                    root.CFrame = root.CFrame * CFrame.Angles(0, math.rad(getgenv().spinbot_speed * delta * 60), 0)
+                end
+            end)
+        else
+            FeatureActivated(false)
+            if spinbotLoop then
+                spinbotLoop:Disconnect()
+                spinbotLoop = nil
+            end
+        end
+    end,
+})
+Misc:Slider({ -- spinbot speed
+    Title = "Spinbot Speed",
+    Step = 1,
+    Flag = "SpinbotSpeedSlider",
+    Value = {
+        Min = 1,
+        Max = 90,
+        Default = 20,
+    },
+    Callback = function(value)
+        getgenv().spinbot_speed = value
+    end
+})
+getgenv().bhop = false
+getgenv().bhop_gain = 4
+getgenv().bhop_maxspeed = 90
+getgenv().bhop_autostrafe = true
+local bhopConnections = {}
+local bhopSpeed = 16
+local bhopBaseWalkSpeed = 16
+local bhopDirection = nil
+local function bhopParts()
+    local character = Player.Character
+    if not character then return nil, nil end
+    return character:FindFirstChild("Humanoid"), character:FindFirstChild("HumanoidRootPart")
+end
+local function stopBhop()
+    for _, connection in ipairs(bhopConnections) do
+        connection:Disconnect()
+    end
+    bhopConnections = {}
+    bhopDirection = nil
+    local humanoid = bhopParts()
+    if humanoid then
+        humanoid.WalkSpeed = getgenv().speed_enabled and getgenv().current_speed or bhopBaseWalkSpeed
+    end
+    bhopSpeed = bhopBaseWalkSpeed
+end
+local function startBhop()
+    stopBhop()
+    local humanoid = bhopParts()
+    bhopBaseWalkSpeed = (humanoid and humanoid.WalkSpeed) or 16
+    bhopSpeed = bhopBaseWalkSpeed
+    table.insert(bhopConnections, RunService.RenderStepped:Connect(function(dt)
+        if not getgenv().bhop then
+            stopBhop()
+            return
+        end
+        local humanoid, root = bhopParts()
+        if not (humanoid and root) then return end
+        local holding = UserInputService:IsKeyDown(Enum.KeyCode.Space)
+        if not holding then
+            bhopDirection = nil
+            bhopSpeed = bhopBaseWalkSpeed
+            local target = getgenv().speed_enabled and getgenv().current_speed or bhopBaseWalkSpeed
+            if humanoid.WalkSpeed ~= target then
+                humanoid.WalkSpeed = target
+            end
+            return
+        end
+
+        local state = humanoid:GetState()
+        local grounded = state == Enum.HumanoidStateType.Running
+            or state == Enum.HumanoidStateType.RunningNoPhysics
+            or state == Enum.HumanoidStateType.Landed
+            or state == Enum.HumanoidStateType.Climbing
+
+        if grounded then
+            bhopSpeed = math.min(bhopSpeed + getgenv().bhop_gain, getgenv().bhop_maxspeed)
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+
+        if humanoid.WalkSpeed ~= bhopSpeed then
+            humanoid.WalkSpeed = bhopSpeed
+        end
+
+        local move = humanoid.MoveDirection
+        if move.Magnitude > 0 then
+            if bhopDirection then
+                local blend = math.clamp(dt * (getgenv().bhop_autostrafe and 9 or 20), 0, 1)
+                bhopDirection = (bhopDirection + (move.Unit - bhopDirection) * blend)
+                if bhopDirection.Magnitude > 0 then
+                    bhopDirection = bhopDirection.Unit
+                end
+            else
+                bhopDirection = move.Unit
+            end
+        end
+
+        if bhopDirection and not grounded then
+            local velocity = root.AssemblyLinearVelocity
+            local target = bhopDirection * bhopSpeed
+            root.AssemblyLinearVelocity = Vector3.new(
+                velocity.X + (target.X - velocity.X) * math.clamp(dt * 12, 0, 1),
+                velocity.Y,
+                velocity.Z + (target.Z - velocity.Z) * math.clamp(dt * 12, 0, 1)
+            )
+        end
+    end))
+    table.insert(bhopConnections, Player.CharacterAdded:Connect(function(character)
+        character:WaitForChild("Humanoid")
+        bhopSpeed = bhopBaseWalkSpeed
+        bhopDirection = nil
+    end))
+end
+Misc:Toggle({ -- bhop
+    Title = "Bhop",
+    Desc = "CS style bunny hop, hold space to keep hopping and keep your speed",
+    Default = false,
+    Flag = "BhopToggle",
+    Callback = function(state)
+        getgenv().bhop = state
+        if state then
+            FeatureActivated(true)
+            startBhop()
+        else
+            FeatureActivated(false)
+            stopBhop()
+        end
+    end,
+})
+Misc:Toggle({ -- bhop smooth strafe
+    Title = "Bhop Smooth Strafe",
+    Desc = "Eases your direction changes in the air instead of snapping",
+    Default = true,
+    Flag = "BhopAutoStrafeToggle",
+    Callback = function(state)
+        getgenv().bhop_autostrafe = state
+    end,
+})
+Misc:Slider({ -- bhop speed gain
+    Title = "Bhop Speed Gain",
+    Desc = "Speed added per hop",
+    Step = 1,
+    Flag = "BhopGainSlider",
+    Value = {
+        Min = 0,
+        Max = 30,
+        Default = 4,
+    },
+    Callback = function(value)
+        getgenv().bhop_gain = value
+    end
+})
+Misc:Slider({ -- bhop max speed
+    Title = "Bhop Max Speed",
+    Desc = "Speed cap while bunny hopping",
+    Step = 5,
+    Flag = "BhopMaxSpeedSlider",
+    Value = {
+        Min = 20,
+        Max = 300,
+        Default = 90,
+    },
+    Callback = function(value)
+        getgenv().bhop_maxspeed = value
+    end
 })
 Misc:Toggle({ -- noclip
     Title = "Noclip",
