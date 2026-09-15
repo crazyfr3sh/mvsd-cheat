@@ -205,7 +205,7 @@ local Options = Library.Options
 local Toggles = Library.Toggles
 
 local Window = Library:CreateWindow({
-    Title = '<font color="#4B0082"><b>SELIK</b></font><font color="#ffffff"><b>HUB</b></font>',
+    Title = '`<font color="#4B0082"><b>SELIK</b></font><font color="#ffffff"><b>HUB</b></font>`',
     Center = true,
     AutoShow = true,
     TabPadding = 8,
