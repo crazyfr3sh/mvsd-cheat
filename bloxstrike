@@ -259,47 +259,16 @@ end)
 -- =========================================================================
 
 -- =========================================================================
--- [ MISC TAB - MOVEMENT ]  (CS2 / Skeet-style Bhop + AutoStrafe)
+-- [ MISC TAB - MOVEMENT ]  (Simple Rage Bhop - hold Space = fly)
 -- =========================================================================
 
 local MiscBox = Tabs.Misc:AddLeftGroupbox("Movement", "activity")
 
-MiscBox:AddToggle("AutoBhop", { Text = "Auto Bhop", Default = false })
-MiscBox:AddToggle("AutoStrafe", { Text = "Auto Strafe", Default = true })
-MiscBox:AddSlider("BhopSpeed", { Text = "Max Air Speed", Default = 28, Min = 16, Max = 50, Rounding = 1, Suffix = "studs" })
-MiscBox:AddSlider("AirAccel", { Text = "Air Acceleration", Default = 45, Min = 10, Max = 120, Rounding = 1 })
+MiscBox:AddToggle("AutoBhop", { Text = "Auto Bhop (Hold Space)", Default = false })
+MiscBox:AddSlider("BhopSpeed", { Text = "Bhop Speed", Default = 55, Min = 20, Max = 120, Rounding = 1, Suffix = "spd" })
 MiscBox:AddToggle("NoFallDamage", { Text = "No Fall Damage", Default = false })
 
--- Helpers
-local function isOnGround(root, character)
-    local params = RaycastParams.new()
-    params.FilterDescendantsInstances = {character}
-    params.FilterType = Enum.RaycastFilterType.Exclude
-    params.IgnoreWater = true
-
-    -- Несколько лучей для стабильности (как в нормальных читах)
-    local offsets = {
-        Vector3.new(0, 0, 0),
-        Vector3.new(0.7, 0, 0),
-        Vector3.new(-0.7, 0, 0),
-        Vector3.new(0, 0, 0.7),
-        Vector3.new(0, 0, -0.7)
-    }
-
-    for _, offset in ipairs(offsets) do
-        local origin = root.Position + offset
-        local result = Workspace:Raycast(origin, Vector3.new(0, -3.3, 0), params)
-        if result then
-            return true, result
-        end
-    end
-    return false, nil
-end
-
-local lastVel = Vector3.zero
-local lastYaw = 0
-
-RunService.Heartbeat:Connect(function(dt)
+RunService.Heartbeat:Connect(function()
     pcall(function()
         local Character = LP.Character
         if not Character then return end
@@ -307,64 +276,27 @@ RunService.Heartbeat:Connect(function(dt)
         local Humanoid = Character:FindFirstChild("Humanoid")
         if not RootPart or not Humanoid then return end
 
-        local onGround = isOnGround(RootPart, Character)
-        local velocity = RootPart.AssemblyLinearVelocity
-        local speed = Vector3.new(velocity.X, 0, velocity.Z).Magnitude
+        if Toggles.AutoBhop and Toggles.AutoBhop.Value and UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            -- Постоянный прыжок
+            Humanoid.Jump = true
 
-        -- ===================== AUTO BHOP =====================
-        if Toggles.AutoBhop and Toggles.AutoBhop.Value then
-            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-                if onGround then
-                    Humanoid.Jump = true
-                    -- небольшой буст вверх для стабильности
-                    RootPart.AssemblyLinearVelocity = Vector3.new(velocity.X, math.max(velocity.Y, 42), velocity.Z)
-                end
-            end
+            -- Берём направление куда смотришь
+            local look = Camera.CFrame.LookVector
+            local dir = Vector3.new(look.X, 0, look.Z).Unit
+
+            local speed = Options.BhopSpeed and Options.BhopSpeed.Value or 55
+
+            -- Жёстко задаём скорость вперёд + вверх
+            RootPart.AssemblyLinearVelocity = Vector3.new(
+                dir.X * speed,
+                math.max(RootPart.AssemblyLinearVelocity.Y, 45), -- чтобы не падал
+                dir.Z * speed
+            )
         end
-
-        -- ===================== AUTO STRAFE (Skeet/GS style) =====================
-        if Toggles.AutoStrafe and Toggles.AutoStrafe.Value and not onGround then
-            local moveDir = GetMoveDirection()
-            if moveDir.Magnitude > 0.1 then
-                local maxSpeed = Options.BhopSpeed and Options.BhopSpeed.Value or 28
-                local airAccel = Options.AirAccel and Options.AirAccel.Value or 45
-
-                -- Wish velocity
-                local wishVel = moveDir * maxSpeed
-                local currentVel = Vector3.new(velocity.X, 0, velocity.Z)
-
-                -- Air accelerate (классический Source-style)
-                local currentSpeed = currentVel:Dot(moveDir)
-                local addSpeed = maxSpeed - currentSpeed
-
-                if addSpeed > 0 then
-                    local accelSpeed = airAccel * dt * maxSpeed
-                    if accelSpeed > addSpeed then
-                        accelSpeed = addSpeed
-                    end
-                    currentVel = currentVel + moveDir * accelSpeed
-                end
-
-                -- Лёгкий yaw-boost (как в хороших читах)
-                local camLook = Camera.CFrame.LookVector
-                local yawDelta = math.atan2(camLook.X, camLook.Z) - lastYaw
-                lastYaw = math.atan2(camLook.X, camLook.Z)
-
-                if math.abs(yawDelta) > 0.01 then
-                    local side = Camera.CFrame.RightVector * math.sign(yawDelta)
-                    currentVel = currentVel + side * (math.abs(yawDelta) * 18)
-                end
-
-                -- Применяем
-                RootPart.AssemblyLinearVelocity = Vector3.new(currentVel.X, velocity.Y, currentVel.Z)
-            end
-        end
-
-        lastVel = velocity
     end)
 end)
 
--- No Fall Damage (оставлено как было)
+-- No Fall Damage
 RunService.Heartbeat:Connect(function()
     pcall(function()
         if Toggles.NoFallDamage and Toggles.NoFallDamage.Value then
