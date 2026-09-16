@@ -259,71 +259,99 @@ end)
 -- =========================================================================
 
 -- =========================================================================
--- [ MISC TAB - MOVEMENT ]  (Force Bhop - hold Space = fly)
+-- [ MISC TAB - MOVEMENT ]  (BloxStrike Hook Bhop - hold Space)
 -- =========================================================================
 
 local MiscBox = Tabs.Misc:AddLeftGroupbox("Movement", "activity")
 
 MiscBox:AddToggle("AutoBhop", { Text = "Auto Bhop (Hold Space)", Default = false })
-MiscBox:AddSlider("BhopSpeed", { Text = "Bhop Speed", Default = 70, Min = 30, Max = 150, Rounding = 1, Suffix = "spd" })
+MiscBox:AddSlider("BhopSpeed", { Text = "Bhop Speed", Default = 28, Min = 16, Max = 60, Rounding = 1, Suffix = "spd" })
 MiscBox:AddToggle("NoFallDamage", { Text = "No Fall Damage", Default = false })
 
--- Force connection
-local bhopConnection = nil
+-- === BloxStrike Hook ===
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CharacterClass, Buttons
 
-local function startBhop()
-    if bhopConnection then bhopConnection:Disconnect() end
+pcall(function()
+    CharacterClass = require(ReplicatedStorage.Classes.Character)
+    Buttons = require(ReplicatedStorage.MovementV2.Buttons)
+end)
 
-    bhopConnection = RunService.RenderStepped:Connect(function()
-        if not (Toggles.AutoBhop and Toggles.AutoBhop.Value) then return end
-        if not UserInputService:IsKeyDown(Enum.KeyCode.Space) then return end
+local originalSampleInput = nil
+local isHoldingSpace = false
+local bhopHooked = false
 
-        local Character = LP.Character
-        if not Character then return end
-
-        local RootPart = Character:FindFirstChild("HumanoidRootPart")
-        local Humanoid = Character:FindFirstChild("Humanoid")
-        if not RootPart or not Humanoid then return end
-
-        -- 1. Форсим прыжок
-        Humanoid.Jump = true
-        Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-        Humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
-
-        -- 2. Берём направление камеры
-        local look = Camera.CFrame.LookVector
-        local dir = Vector3.new(look.X, 0, look.Z)
-        if dir.Magnitude > 0 then
-            dir = dir.Unit
-        else
-            dir = Vector3.new(0, 0, -1)
-        end
-
-        local speed = (Options.BhopSpeed and Options.BhopSpeed.Value) or 70
-
-        -- 3. Жёстко вбиваем скорость каждый кадр
-        RootPart.AssemblyLinearVelocity = Vector3.new(
-            dir.X * speed,
-            55, -- постоянный подъём, чтобы не падал
-            dir.Z * speed
-        )
-    end)
-end
-
--- Запускаем при включении
-Toggles.AutoBhop:OnChanged(function(value)
-    if value then
-        startBhop()
-    else
-        if bhopConnection then
-            bhopConnection:Disconnect()
-            bhopConnection = nil
-        end
+-- Отслеживаем зажатие Space
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.Space then
+        isHoldingSpace = true
     end
 end)
 
--- На всякий случай сразу запускаем
-startBhop()
+UserInputService.InputEnded:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.Space then
+        isHoldingSpace = false
+    end
+end)
+
+local function applyBhopHook()
+    if not CharacterClass or not Buttons or bhopHooked then return end
+    bhopHooked = true
+
+    if not _G.__originalSampleInput then
+        _G.__originalSampleInput = CharacterClass.SampleInput
+    end
+    originalSampleInput = _G.__originalSampleInput
+
+    CharacterClass.SampleInput = function(self, p2)
+        local sample = originalSampleInput(self, p2)
+        if not sample then return sample end
+
+        if Toggles.AutoBhop and Toggles.AutoBhop.Value and isHoldingSpace then
+            local mvState = self.MovementState
+            local onGround = mvState and mvState.OnGround
+
+            if onGround then
+                -- Форсим прыжок через систему игры
+                sample.Buttons = Buttons.with(sample.Buttons, Buttons.Jump, true)
+            else
+                sample.Buttons = Buttons.with(sample.Buttons, Buttons.Jump, false)
+            end
+        end
+
+        return sample
+    end
+end
+
+-- Применяем хук
+applyBhopHook()
+
+-- Дополнительный буст скорости (если хук сработал)
+RunService.Heartbeat:Connect(function()
+    pcall(function()
+        if not (Toggles.AutoBhop and Toggles.AutoBhop.Value and isHoldingSpace) then return end
+
+        local Character = LP.Character
+        if not Character then return end
+        local RootPart = Character:FindFirstChild("HumanoidRootPart")
+        if not RootPart then return end
+
+        local look = Camera.CFrame.LookVector
+        local dir = Vector3.new(look.X, 0, look.Z)
+        if dir.Magnitude < 0.1 then return end
+        dir = dir.Unit
+
+        local speed = (Options.BhopSpeed and Options.BhopSpeed.Value) or 28
+        local vel = RootPart.AssemblyLinearVelocity
+
+        -- Лёгкий буст вперёд
+        RootPart.AssemblyLinearVelocity = Vector3.new(
+            dir.X * speed,
+            vel.Y,
+            dir.Z * speed
+        )
+    end)
+end)
 
 -- No Fall Damage
 RunService.Heartbeat:Connect(function()
