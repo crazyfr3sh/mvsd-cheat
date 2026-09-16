@@ -259,42 +259,71 @@ end)
 -- =========================================================================
 
 -- =========================================================================
--- [ MISC TAB - MOVEMENT ]  (Simple Rage Bhop - hold Space = fly)
+-- [ MISC TAB - MOVEMENT ]  (Force Bhop - hold Space = fly)
 -- =========================================================================
 
 local MiscBox = Tabs.Misc:AddLeftGroupbox("Movement", "activity")
 
 MiscBox:AddToggle("AutoBhop", { Text = "Auto Bhop (Hold Space)", Default = false })
-MiscBox:AddSlider("BhopSpeed", { Text = "Bhop Speed", Default = 55, Min = 20, Max = 120, Rounding = 1, Suffix = "spd" })
+MiscBox:AddSlider("BhopSpeed", { Text = "Bhop Speed", Default = 70, Min = 30, Max = 150, Rounding = 1, Suffix = "spd" })
 MiscBox:AddToggle("NoFallDamage", { Text = "No Fall Damage", Default = false })
 
-RunService.Heartbeat:Connect(function()
-    pcall(function()
+-- Force connection
+local bhopConnection = nil
+
+local function startBhop()
+    if bhopConnection then bhopConnection:Disconnect() end
+
+    bhopConnection = RunService.RenderStepped:Connect(function()
+        if not (Toggles.AutoBhop and Toggles.AutoBhop.Value) then return end
+        if not UserInputService:IsKeyDown(Enum.KeyCode.Space) then return end
+
         local Character = LP.Character
         if not Character then return end
+
         local RootPart = Character:FindFirstChild("HumanoidRootPart")
         local Humanoid = Character:FindFirstChild("Humanoid")
         if not RootPart or not Humanoid then return end
 
-        if Toggles.AutoBhop and Toggles.AutoBhop.Value and UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-            -- Постоянный прыжок
-            Humanoid.Jump = true
+        -- 1. Форсим прыжок
+        Humanoid.Jump = true
+        Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        Humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
 
-            -- Берём направление куда смотришь
-            local look = Camera.CFrame.LookVector
-            local dir = Vector3.new(look.X, 0, look.Z).Unit
-
-            local speed = Options.BhopSpeed and Options.BhopSpeed.Value or 55
-
-            -- Жёстко задаём скорость вперёд + вверх
-            RootPart.AssemblyLinearVelocity = Vector3.new(
-                dir.X * speed,
-                math.max(RootPart.AssemblyLinearVelocity.Y, 45), -- чтобы не падал
-                dir.Z * speed
-            )
+        -- 2. Берём направление камеры
+        local look = Camera.CFrame.LookVector
+        local dir = Vector3.new(look.X, 0, look.Z)
+        if dir.Magnitude > 0 then
+            dir = dir.Unit
+        else
+            dir = Vector3.new(0, 0, -1)
         end
+
+        local speed = (Options.BhopSpeed and Options.BhopSpeed.Value) or 70
+
+        -- 3. Жёстко вбиваем скорость каждый кадр
+        RootPart.AssemblyLinearVelocity = Vector3.new(
+            dir.X * speed,
+            55, -- постоянный подъём, чтобы не падал
+            dir.Z * speed
+        )
     end)
+end
+
+-- Запускаем при включении
+Toggles.AutoBhop:OnChanged(function(value)
+    if value then
+        startBhop()
+    else
+        if bhopConnection then
+            bhopConnection:Disconnect()
+            bhopConnection = nil
+        end
+    end
 end)
+
+-- На всякий случай сразу запускаем
+startBhop()
 
 -- No Fall Damage
 RunService.Heartbeat:Connect(function()
@@ -304,10 +333,8 @@ RunService.Heartbeat:Connect(function()
             if character then
                 local humanoid = character:FindFirstChildOfClass("Humanoid")
                 if humanoid then
-                    pcall(function()
-                        humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-                        humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-                    end)
+                    humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+                    humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
                 end
             end
         end
