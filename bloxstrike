@@ -259,13 +259,14 @@ end)
 -- =========================================================================
 
 -- =========================================================================
--- [ MISC TAB - MOVEMENT ]  (BloxStrike Hook Bhop - hold Space)
+-- [ MISC TAB - MOVEMENT ]  (BloxStrike Hook Bhop + Speed)
 -- =========================================================================
 
 local MiscBox = Tabs.Misc:AddLeftGroupbox("Movement", "activity")
 
 MiscBox:AddToggle("AutoBhop", { Text = "Auto Bhop (Hold Space)", Default = false })
-MiscBox:AddSlider("BhopSpeed", { Text = "Bhop Speed", Default = 28, Min = 16, Max = 60, Rounding = 1, Suffix = "spd" })
+MiscBox:AddSlider("BhopSpeed", { Text = "Bhop Speed", Default = 38, Min = 20, Max = 80, Rounding = 1, Suffix = "spd" })
+MiscBox:AddSlider("AirAccel", { Text = "Air Accel", Default = 1.4, Min = 0.5, Max = 3, Rounding = 1 })
 MiscBox:AddToggle("NoFallDamage", { Text = "No Fall Damage", Default = false })
 
 -- === BloxStrike Hook ===
@@ -281,7 +282,6 @@ local originalSampleInput = nil
 local isHoldingSpace = false
 local bhopHooked = false
 
--- Отслеживаем зажатие Space
 UserInputService.InputBegan:Connect(function(input)
     if input.KeyCode == Enum.KeyCode.Space then
         isHoldingSpace = true
@@ -312,7 +312,6 @@ local function applyBhopHook()
             local onGround = mvState and mvState.OnGround
 
             if onGround then
-                -- Форсим прыжок через систему игры
                 sample.Buttons = Buttons.with(sample.Buttons, Buttons.Jump, true)
             else
                 sample.Buttons = Buttons.with(sample.Buttons, Buttons.Jump, false)
@@ -323,11 +322,10 @@ local function applyBhopHook()
     end
 end
 
--- Применяем хук
 applyBhopHook()
 
--- Дополнительный буст скорости (если хук сработал)
-RunService.Heartbeat:Connect(function()
+-- === Скорость (главное) ===
+RunService.RenderStepped:Connect(function(dt)
     pcall(function()
         if not (Toggles.AutoBhop and Toggles.AutoBhop.Value and isHoldingSpace) then return end
 
@@ -338,17 +336,23 @@ RunService.Heartbeat:Connect(function()
 
         local look = Camera.CFrame.LookVector
         local dir = Vector3.new(look.X, 0, look.Z)
-        if dir.Magnitude < 0.1 then return end
+        if dir.Magnitude < 0.05 then return end
         dir = dir.Unit
 
-        local speed = (Options.BhopSpeed and Options.BhopSpeed.Value) or 28
-        local vel = RootPart.AssemblyLinearVelocity
+        local targetSpeed = (Options.BhopSpeed and Options.BhopSpeed.Value) or 38
+        local accel = (Options.AirAccel and Options.AirAccel.Value) or 1.4
 
-        -- Лёгкий буст вперёд
+        local vel = RootPart.AssemblyLinearVelocity
+        local currentSpeed = Vector3.new(vel.X, 0, vel.Z).Magnitude
+
+        -- Плавный набор скорости
+        local newSpeed = currentSpeed + (targetSpeed - currentSpeed) * math.min(1, accel * dt * 8)
+
+        -- Применяем
         RootPart.AssemblyLinearVelocity = Vector3.new(
-            dir.X * speed,
+            dir.X * newSpeed,
             vel.Y,
-            dir.Z * speed
+            dir.Z * newSpeed
         )
     end)
 end)
@@ -368,7 +372,6 @@ RunService.Heartbeat:Connect(function()
         end
     end)
 end)
-
 -- =========================================================================
 -- [ WORLD TAB SETUP ]
 -- =========================================================================
