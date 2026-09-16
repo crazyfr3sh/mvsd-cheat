@@ -259,17 +259,16 @@ end)
 -- =========================================================================
 
 -- =========================================================================
--- [ MISC TAB - MOVEMENT ]  (BloxStrike Hook Bhop + Speed)
+-- [ MISC TAB - MOVEMENT ]  (BloxStrike Ultra Fast Bhop)
 -- =========================================================================
 
 local MiscBox = Tabs.Misc:AddLeftGroupbox("Movement", "activity")
 
 MiscBox:AddToggle("AutoBhop", { Text = "Auto Bhop (Hold Space)", Default = false })
-MiscBox:AddSlider("BhopSpeed", { Text = "Bhop Speed", Default = 38, Min = 20, Max = 80, Rounding = 1, Suffix = "spd" })
-MiscBox:AddSlider("AirAccel", { Text = "Air Accel", Default = 1.4, Min = 0.5, Max = 3, Rounding = 1 })
+MiscBox:AddSlider("BhopSpeed", { Text = "Bhop Speed", Default = 85, Min = 40, Max = 150, Rounding = 1, Suffix = "spd" })
 MiscBox:AddToggle("NoFallDamage", { Text = "No Fall Damage", Default = false })
 
--- === BloxStrike Hook ===
+-- === BloxStrike Hook (рабочий прыжок) ===
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CharacterClass, Buttons
 
@@ -324,8 +323,8 @@ end
 
 applyBhopHook()
 
--- === Скорость (главное) ===
-RunService.RenderStepped:Connect(function(dt)
+-- === Ультра-быстрый разгон ===
+RunService.RenderStepped:Connect(function()
     pcall(function()
         if not (Toggles.AutoBhop and Toggles.AutoBhop.Value and isHoldingSpace) then return end
 
@@ -339,20 +338,13 @@ RunService.RenderStepped:Connect(function(dt)
         if dir.Magnitude < 0.05 then return end
         dir = dir.Unit
 
-        local targetSpeed = (Options.BhopSpeed and Options.BhopSpeed.Value) or 38
-        local accel = (Options.AirAccel and Options.AirAccel.Value) or 1.4
+        local speed = (Options.BhopSpeed and Options.BhopSpeed.Value) or 85
 
-        local vel = RootPart.AssemblyLinearVelocity
-        local currentSpeed = Vector3.new(vel.X, 0, vel.Z).Magnitude
-
-        -- Плавный набор скорости
-        local newSpeed = currentSpeed + (targetSpeed - currentSpeed) * math.min(1, accel * dt * 8)
-
-        -- Применяем
+        -- Мгновенно ставим максимальную скорость
         RootPart.AssemblyLinearVelocity = Vector3.new(
-            dir.X * newSpeed,
-            vel.Y,
-            dir.Z * newSpeed
+            dir.X * speed,
+            math.max(RootPart.AssemblyLinearVelocity.Y, 35), -- чуть вверх, чтобы не падал
+            dir.Z * speed
         )
     end)
 end)
