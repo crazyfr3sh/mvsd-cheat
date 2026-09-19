@@ -2998,8 +2998,20 @@ Players.PlayerRemoving:Connect(function(p)
 end)
 
 -- =========================================================================
--- [ FOV CIRCLES ]
+-- [ FOV CIRCLES + GRADIENT SPIN ]
 -- =========================================================================
+
+local FOV_SEGMENTS = 72
+local SilentFovLines = {}
+local silentFovAngle = 0
+
+for i = 1, FOV_SEGMENTS do
+    local line = Drawing.new("Line")
+    line.Thickness = 2
+    line.Transparency = 1
+    line.Visible = false
+    SilentFovLines[i] = line
+end
 
 local SilentFovCircle = Drawing.new("Circle")
 SilentFovCircle.NumSides = 128
@@ -3012,6 +3024,14 @@ AimbotFovCircle.NumSides = 128
 AimbotFovCircle.Thickness = 1
 AimbotFovCircle.Filled = false
 AimbotFovCircle.Visible = false
+
+local function lerpColorFOV(a, b, t)
+    return Color3.new(
+        a.R + (b.R - a.R) * t,
+        a.G + (b.G - a.G) * t,
+        a.B + (b.B - a.B) * t
+    )
+end
 
 task.spawn(function()
     while task.wait(5) do
@@ -3028,9 +3048,78 @@ task.spawn(function()
                 AimbotFovCircle.Thickness = 1
                 AimbotFovCircle.Filled = false
             end
+            for i = 1, FOV_SEGMENTS do
+                if not SilentFovLines[i] or not pcall(function() return SilentFovLines[i].Visible end) then
+                    local line = Drawing.new("Line")
+                    line.Thickness = 2
+                    line.Transparency = 1
+                    line.Visible = false
+                    SilentFovLines[i] = line
+                end
+            end
         end)
     end
 end)
+
+function updateSilentFov(viewportCenter)
+    local silentFovEnabled = Toggles.SilentAim and Toggles.SilentAim.Value and Toggles.SilentUseFovCircle and Toggles.SilentUseFovCircle.Value
+    local radius = Options.SilentFovCircleRadius and Options.SilentFovCircleRadius.Value or 50
+    local thickness = Options.SilentFovThickness and Options.SilentFovThickness.Value or 2
+    local useGradient = Toggles.SilentFovGradient and Toggles.SilentFovGradient.Value
+
+    if silentFovEnabled then
+        if useGradient then
+            SilentFovCircle.Visible = false
+
+            local colorA = Options.SilentFovColorA and Options.SilentFovColorA.Value or Color3.fromRGB(255, 0, 0)
+            local colorB = Options.SilentFovColorB and Options.SilentFovColorB.Value or Color3.fromRGB(0, 150, 255)
+            local spinSpeed = Options.SilentFovSpinSpeed and Options.SilentFovSpinSpeed.Value or 2
+
+            silentFovAngle = (silentFovAngle + spinSpeed * 0.05) % (math.pi * 2)
+
+            local step = (math.pi * 2) / FOV_SEGMENTS
+            for i = 1, FOV_SEGMENTS do
+                local a1 = silentFovAngle + (i - 1) * step
+                local a2 = silentFovAngle + i * step
+
+                local x1 = viewportCenter.X + math.cos(a1) * radius
+                local y1 = viewportCenter.Y + math.sin(a1) * radius
+                local x2 = viewportCenter.X + math.cos(a2) * radius
+                local y2 = viewportCenter.Y + math.sin(a2) * radius
+
+                local t = (i - 1) / FOV_SEGMENTS
+                local colorT = math.abs((t * 2) % 2 - 1)
+                local col = lerpColorFOV(colorA, colorB, colorT)
+
+                local line = SilentFovLines[i]
+                line.From = Vector2.new(x1, y1)
+                line.To = Vector2.new(x2, y2)
+                line.Color = col
+                line.Thickness = thickness
+                line.Visible = true
+            end
+        else
+            for i = 1, FOV_SEGMENTS do
+                SilentFovLines[i].Visible = false
+            end
+            SilentFovCircle.Position = viewportCenter
+            SilentFovCircle.Radius = radius
+            SilentFovCircle.Color = Options.SilentFovColor and Options.SilentFovColor.Value or Color3.fromRGB(255, 0, 0)
+            SilentFovCircle.Thickness = thickness
+            SilentFovCircle.Visible = true
+        end
+    else
+        SilentFovCircle.Visible = false
+        for i = 1, FOV_SEGMENTS do
+            SilentFovLines[i].Visible = false
+        end
+    end
+
+    AimbotFovCircle.Position = viewportCenter
+    AimbotFovCircle.Radius = Options.AimbotFovCircleRadius and Options.AimbotFovCircleRadius.Value or 50
+    AimbotFovCircle.Color = Options.AimbotFovColor and Options.AimbotFovColor.Value or Color3.fromRGB(0, 255, 0)
+    AimbotFovCircle.Visible = Toggles.Aimbot and Toggles.Aimbot.Value and Toggles.AimbotUseFovCircle and Toggles.AimbotUseFovCircle.Value
+end
 
 -- =========================================================================
 -- [ TARGET SYSTEM ]
@@ -3366,18 +3455,10 @@ RunService.RenderStepped:Connect(function()
     local viewportCenter = cam.ViewportSize / 2
 
     pcall(function()
-        SilentFovCircle.Position = viewportCenter
-        SilentFovCircle.Radius = Options.SilentFovCircleRadius and Options.SilentFovCircleRadius.Value or 50
-        SilentFovCircle.Color = Options.SilentFovColor and Options.SilentFovColor.Value or Color3.fromRGB(255, 0, 0)
-        SilentFovCircle.Visible = Toggles.SilentAim and Toggles.SilentAim.Value and Toggles.SilentUseFovCircle and Toggles.SilentUseFovCircle.Value
-        AimbotFovCircle.Position = viewportCenter
-        AimbotFovCircle.Radius = Options.AimbotFovCircleRadius and Options.AimbotFovCircleRadius.Value or 50
-        AimbotFovCircle.Color = Options.AimbotFovColor and Options.AimbotFovColor.Value or Color3.fromRGB(0, 255, 0)
-        AimbotFovCircle.Visible = Toggles.Aimbot and Toggles.Aimbot.Value and Toggles.AimbotUseFovCircle and Toggles.AimbotUseFovCircle.Value
+        updateSilentFov(viewportCenter)
     end)
 
     if frameCounter % 2 == 0 then FindAllTargets() end
-
     local spongyActive = getSpongyActive()
     local targetToPull = nil
 
